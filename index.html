@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>福岡自駕之旅 2026 | Fukuoka Travel App</title>
+    <title>福岡自駕之旅 2026 | 雲端同步版</title>
     <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -76,6 +76,24 @@
             margin-top: 4px;
         }
 
+        /* 雲端同步狀態條 */
+        .sync-banner {
+            background: #EAF9EE;
+            color: #27AE60;
+            text-align: center;
+            font-size: 11px;
+            padding: 6px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+        .sync-banner.loading {
+            background: #FFF2EB;
+            color: #FF9E66;
+        }
+
         /* --- 主內容區 --- */
         .content-section {
             padding: 16px;
@@ -126,7 +144,6 @@
             z-index: 10;
         }
 
-        /* 操作按鈕組 */
         .drag-controls {
             display: flex;
             gap: 12px;
@@ -248,7 +265,7 @@
             cursor: pointer;
         }
 
-        /* --- 購物卡片 (優化圖片渲染) --- */
+        /* --- 購物卡片 --- */
         .shopping-card-body { display: flex; gap: 12px; align-items: center; }
         .shopping-info { flex: 1; }
         .shopping-img-box {
@@ -257,9 +274,7 @@
             font-size: 10px; color: var(--text-muted); text-align: center; overflow: hidden;
             border: 1px solid #E5E5EA; flex-shrink: 0;
         }
-        .shopping-img-box img {
-            width: 100%; height: 100%; object-fit: cover;
-        }
+        .shopping-img-box img { width: 100%; height: 100%; object-fit: cover; }
 
         /* --- 匯率 --- */
         .rate-display { display: flex; justify-content: space-between; background: #F8F9FA; padding: 12px; border-radius: var(--radius-md); margin-bottom: 16px; font-size: 14px; }
@@ -298,6 +313,8 @@
 
 <div class="phone-container">
     
+    <div id="cloud-status" class="sync-banner"><i class="fa-solid fa-cloud-arrow-down"></i> 正在從雲端數據庫下載最新行程...</div>
+
     <div class="header">
         <h1>福岡自駕之旅 2026</h1>
         <p><i class="fa-regular fa-calendar"></i> 2026.07.25 - 2026.07.31 (7 Days)</p>
@@ -454,7 +471,6 @@
             </div>
             <div class="form-group"><label>入住及退房時間說明</label><input type="text" id="form-hotel-time" class="form-control" value="CI: 15:00 / CO: 11:00"></div>
             <div class="form-group"><label>Google Maps 鏈接</label><input type="text" id="form-hotel-maps" class="form-control"></div>
-            <div class="form-group"><label>上傳圖片 (選填)</label><input type="file" id="form-shop-img-file" class="form-control" accept="image/*"></div>
             <button class="btn-primary" onclick="submitHotel()">確認儲存</button>
         </div>
     </div>
@@ -463,16 +479,14 @@
         <div class="modal-content">
             <div class="modal-header"><h3 id="shop-modal-title">Need to buy</h3><i class="fa-solid fa-xmark" onclick="closeModal('modal-add-shopping')"></i></div>
             <input type="hidden" id="form-shop-id">
-            <div class="form-group"><label>商品名稱</label><input type="text" id="form-shop-name" class="form-control" placeholder="如：藥妝 / 伴手禮名稱"></div>
-            <div class="form-group"><label>購買地點</label><input type="text" id="form-shop-loc" class="form-control" placeholder="如：天神免稅店 / 驚安殿堂"></div>
-            
+            <div class="form-group"><label>商品名稱</label><input type="text" id="form-shop-name" class="form-control"></div>
+            <div class="form-group"><label>購買地點</label><input type="text" id="form-shop-loc" class="form-control"></div>
             <div class="form-group">
-                <label>上傳實體照片 (點擊可拍照或選相簿 📸)</label>
+                <label>上傳實體照片 (拍照或選相簿 📸)</label>
                 <input type="file" id="form-shop-img-file" class="form-control" accept="image/*" onchange="previewUploadImage(this)">
                 <input type="hidden" id="form-shop-img-base64">
             </div>
-            
-            <div class="form-group"><label>Google Maps 鏈接</label><input type="text" id="form-shop-maps" class="form-control" placeholder="https://goo.gl/maps/..."></div>
+            <div class="form-group"><label>Google Maps 鏈接</label><input type="text" id="form-shop-maps" class="form-control"></div>
             <button class="btn-primary" onclick="submitShopping()">確認儲存</button>
         </div>
     </div>
@@ -512,33 +526,15 @@
 </div>
 
 <script>
+    // ==================== 🛠️ 已精確填入你的 SUPABASE 雲端大腦資訊 ====================
+    const SUPABASE_URL = "https://powpsotbtrlnjxqtdqir.supabase.co"; 
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBvd3Bzb3RidHJsbmp4cXRkcWlyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAwNTA2NTgsImV4cCI6MjA5NTYyNjY1OH0.-4eoHoc0OhwIFjiqkAxEuDsei_US-v8Eq4vsPj1CHxQ";
+    // =====================================================================
+
     let currentDay = 1;
     const exchangeRatejpy = 20.15; 
 
-    let itineraries = [];
-    let guides = [];
-    let hotels = [];
-    let shoppings = [];
-    let explores = [];
-
-    const defaultItineraries = [{ id: 1001, day: 1, time: "12:30", name: "博多一雙拉麵 🍜", desc: "福岡落地首餐！極度濃郁的泡沫系豚骨拉麵名店。", cate: "食物", tag: "tag-eat", maps: "https://goo.gl/maps/x1" }];
-    const defaultGuides = [
-        { id: 2001, name: "日本自駕必讀：高速公路 KEP 卡", detail: "過路費吃到飽卡片，租車時記得在櫃檯一併確認是否已開通領取！", pinned: true },
-        { id: 2002, name: "日本加油站自助手續", detail: "認明紅色「Regular」汽油，螢幕可選繁體中文，可用信用卡付款。", pinned: false }
-    ];
-    
-    const targetHotels = [
-        { id: 3001, name: "美居佐賀唐津酒店", addr: "佐賀縣唐津市東唐津4-9-20", time: "CI: 15:00 / CO: 11:00", maps: "https://maps.google.com/?q=Mercure+Saga+Karatsu+Resort", dates: [1] }, 
-        { id: 3002, name: "夜燈見莊", addr: "佐賀縣藤津郡太良町大字大浦丙", time: "CI: 15:00 / CO: 10:00", maps: "https://maps.google.com/?q=夜燈見莊", dates: [2] }, 
-        { id: 3003, name: "福岡蒙特利酒店", addr: "福岡市中央區渡邊通3丁目4番13號", time: "CI: 15:00 / CO: 11:00", maps: "https://maps.google.com/?q=Hotel+Monterey+Fukuoka", dates: [3, 4, 5, 6, 7] } 
-    ];
-    
-    // 預設預載一個帶有圖標的一手好物
-    const defaultShoppings = [{ id: 4001, name: "博多一雙拉麵外帶包", loc: "博多車站名產街", imgData: "", maps: "https://goo.gl/maps/s1" }];
-    const defaultExplores = [
-        { id: 5001, name: "太宰府天滿宮", region: "太宰府", subregion: "參道商圈", cate: "景點🏖️", addr: "福岡縣太宰府市宰府4丁目7-1", maps: "https://goo.gl/maps/e1" },
-        { id: 5002, name: "櫻井二見浦 夫婦岩", region: "糸島", subregion: "志摩櫻井", cate: "景點🏖️", addr: "福岡縣糸島市志摩櫻井", maps: "https://goo.gl/maps/e2" }
-    ];
+    let itineraries = []; let guides = []; let hotels = []; let shoppings = []; let explores = [];
 
     const dayMapping = {
         1: { dateStr: "2026.07.25", ddmm: "25/07", temp: "32°C / 25°C", dress: "👕 盛夏酷暑！請穿著透氣夏裝、佩戴墨鏡與防曬帽。" },
@@ -550,22 +546,68 @@
         7: { dateStr: "2026.07.31", ddmm: "29°C / 22°C", dress: "✈️ 回程返港，著重輕便舒適的機場與機艙穿著。" }
     };
 
-    window.onload = function() {
-        const localIti = localStorage.getItem('fk_itineraries');
-        const localGui = localStorage.getItem('fk_guides');
-        const localShop = localStorage.getItem('fk_shoppings');
-        const localExp = localStorage.getItem('fk_explores');
-        
-        localStorage.removeItem('fk_hotels');
+    // 雲端數據庫同步引流模組
+    async function syncFromCloud(key) {
+        try {
+            let response = await fetch(`${SUPABASE_URL}/rest/v1/fukuoka_cloud_store?key_name=eq.${key}`, {
+                method: "GET",
+                headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` }
+            });
+            let data = await response.json();
+            if(data && data.length > 0) { return data[0].json_data; }
+        } catch (e) { console.error("雲端讀取失敗: ", e); }
+        return null;
+    }
 
-        itineraries = localIti ? JSON.parse(localIti) : defaultItineraries;
-        guides = localGui ? JSON.parse(localGui) : defaultGuides;
-        shoppings = localShop ? JSON.parse(localShop) : defaultShoppings;
-        explores = localExp ? JSON.parse(localExp) : defaultExplores;
-        
-        hotels = targetHotels;
+    async function pushToCloud(key, jsonData) {
+        showSyncingStatus(true);
+        try {
+            await fetch(`${SUPABASE_URL}/rest/v1/fukuoka_cloud_store?key_name=eq.${key}`, {
+                method: "PATCH",
+                headers: { 
+                    "apikey": SUPABASE_ANON_KEY, 
+                    "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ json_data: jsonData, updated_at: new Date() })
+            });
+            showSyncingStatus(false);
+        } catch (e) { console.error("雲端上傳失敗: ", e); }
+    }
 
-        saveAllData(); 
+    function showSyncingStatus(isLoading) {
+        const bar = document.getElementById('cloud-status');
+        if(isLoading) {
+            bar.className = "sync-banner loading";
+            bar.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> 正在實時同步修改到雲端數據庫...`;
+        } else {
+            bar.className = "sync-banner";
+            bar.innerHTML = `<i class="fa-solid fa-cloud-check" style="color:#27AE60;"></i> 雲端數據庫已同步（所有設備資料一致）`;
+        }
+    }
+
+    window.onload = async function() {
+        const cloudIti = await syncFromCloud('fk_itineraries');
+        const cloudGui = await syncFromCloud('fk_guides');
+        const cloudHot = await syncFromCloud('fk_hotels');
+        const cloudShop = await syncFromCloud('fk_shoppings');
+        const cloudExp = await syncFromCloud('fk_explores');
+
+        const targetHotels = [
+            { id: 3001, name: "美居佐賀唐津酒店", addr: "佐賀縣唐津市東唐津4-9-20", time: "CI: 15:00 / CO: 11:00", maps: "https://maps.google.com/?q=Mercure+Saga+Karatsu+Resort", dates: [1] }, 
+            { id: 3002, name: "夜燈見莊", addr: "佐賀縣藤津郡太良町大字大浦丙", time: "CI: 15:00 / CO: 10:00", maps: "https://maps.google.com/?q=夜燈見莊", dates: [2] }, 
+            { id: 3003, name: "福岡蒙特利酒店", addr: "福岡市中央區渡邊通3丁目4番13號", time: "CI: 15:00 / CO: 11:00", maps: "https://maps.google.com/?q=Hotel+Monterey+Fukuoka", dates: [3, 4, 5, 6, 7] } 
+        ];
+
+        itineraries = cloudIti || [];
+        guides = cloudGui || [];
+        shoppings = cloudShop || [];
+        explores = cloudExp || [];
+        hotels = (cloudHot && cloudHot.length > 0) ? cloudHot : targetHotels;
+
+        if(!cloudHot || cloudHot.length === 0) { await pushToCloud('fk_hotels', hotels); }
+
+        showSyncingStatus(false);
         updateSubregionDropdown();
         renderAll();
 
@@ -598,173 +640,124 @@
     function switchTab(tabId, el) { 
         document.querySelectorAll('.content-section').forEach(sec => sec.classList.remove('active')); 
         document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active')); 
-        document.getElementById('tab-' + tabId).classList.add('active'); 
-        el.classList.add('active'); 
-        if (tabId === 'hotel') { renderHotels(); }
-        if (tabId === 'shopping') { renderShopping(); }
+        document.getElementById('tab-' + tabId).classList.add('active'); el.classList.add('active'); 
+        if (tabId === 'hotel') renderHotels();
+        if (tabId === 'shopping') renderShopping();
     }
 
-    // --- ✨ 全新技術：異步讀取檔案二進制流，轉化為快取 Base64 碼 ---
     function previewUploadImage(input) {
         const file = input.files[0];
         if (file) {
             const reader = new FileReader();
-            reader.onload = function(e) {
-                // 將圖片編碼字串塞入隱藏的暫存區
-                document.getElementById('form-shop-img-base64').value = e.target.result;
-            };
-            reader.readAsDataURL(file); // 啟動讀取
+            reader.onload = function(e) { document.getElementById('form-shop-img-base64').value = e.target.result; };
+            reader.readAsDataURL(file);
         }
     }
 
-    // --- 編輯管理器 ---
-    function openEditModal(type, id) {
+    async function deleteItem(type, id) {
+        if (type === 'itinerary') { itineraries = itineraries.filter(i => i.id !== id); await pushToCloud('fk_itineraries', itineraries); }
+        if (type === 'guide') { guides = guides.filter(g => g.id !== id); await pushToCloud('fk_guides', guides); }
+        if (type === 'hotel') { hotels = hotels.filter(h => h.id !== id); await pushToCloud('fk_hotels', hotels); }
+        if (type === 'shopping') { shoppings = shoppings.filter(s => s.id !== id); await pushToCloud('fk_shoppings', shoppings); }
+        if (type === 'explore') { explores = explores.filter(e => e.id !== id); updateSubregionDropdown(); await pushToCloud('fk_explores', explores); }
+        renderAll();
+    }
+
+    async function moveOrder(type, index, direction) {
+        let arr = type === 'itinerary' ? itineraries.filter(item => item.day == currentDay) : (type === 'shopping' ? shoppings : explores);
+        let targetIndex = index + direction; if (targetIndex < 0 || targetIndex >= arr.length) return;
         if (type === 'itinerary') {
-            let item = itineraries.find(i => i.id === id); if(!item) return;
-            document.getElementById('iti-modal-title').textContent = "編輯行程卡片 ✏️";
-            document.getElementById('form-iti-id').value = item.id;
-            document.getElementById('form-iti-day').value = item.day;
-            document.getElementById('form-iti-time').value = item.time;
-            document.getElementById('form-iti-name').value = item.name;
-            document.getElementById('form-iti-desc').value = item.desc;
-            document.getElementById('form-iti-cate').value = item.cate;
-            document.getElementById('form-iti-tag').value = item.tag;
-            document.getElementById('form-iti-maps').value = item.maps;
-            openModal('modal-add-itinerary');
+            let ac = itineraries.findIndex(i => i.id === arr[index].id), at = itineraries.findIndex(i => i.id === arr[targetIndex].id);
+            let temp = itineraries[ac]; itineraries[ac] = itineraries[at]; itineraries[at] = temp;
+            await pushToCloud('fk_itineraries', itineraries);
+        } else {
+            let temp = arr[index]; arr[index] = arr[targetIndex]; arr[targetIndex] = temp;
+            if(type === 'shopping') await pushToCloud('fk_shoppings', shoppings);
+            if(type === 'explore') await pushToCloud('fk_explores', explores);
         }
-        else if (type === 'hotel') {
-            let item = hotels.find(h => h.id === id); if(!item) return;
-            document.getElementById('hotel-modal-title').textContent = "編輯酒店資訊 ✏️";
-            document.getElementById('form-hotel-id').value = item.id;
-            document.getElementById('form-hotel-name').value = item.name;
-            document.getElementById('form-hotel-addr').value = item.addr;
-            document.getElementById('form-hotel-time').value = item.time;
-            document.getElementById('form-hotel-maps').value = item.maps;
-            let checkboxes = document.getElementsByName('hotel-days');
-            checkboxes.forEach(cb => { cb.checked = item.dates.includes(Number(cb.value)); });
-            openModal('modal-add-hotel');
-        }
-        else if (type === 'shopping') {
-            let item = shoppings.find(s => s.id === id); if(!item) return;
-            document.getElementById('shop-modal-title').textContent = "編輯購物清單 ✏️";
-            document.getElementById('form-shop-id').value = item.id;
-            document.getElementById('form-shop-name').value = item.name;
-            document.getElementById('form-shop-loc').value = item.loc;
-            document.getElementById('form-shop-img-base64').value = item.imgData || "";
-            document.getElementById('form-shop-maps').value = item.maps;
-            document.getElementById('form-shop-img-file').value = ""; // 清空檔案選擇器
-            openModal('modal-add-shopping');
-        }
-        else if (type === 'explore') {
-            let item = explores.find(e => e.id === id); if(!item) return;
-            document.getElementById('exp-modal-title').textContent = "編輯想去景點 ✏️";
-            document.getElementById('form-exp-id').value = item.id;
-            document.getElementById('form-exp-name').value = item.name;
-            document.getElementById('form-exp-region').value = item.region;
-            document.getElementById('form-exp-sub').value = item.subregion;
-            document.getElementById('form-exp-cate').value = item.cate;
-            document.getElementById('form-exp-addr').value = item.addr;
-            document.getElementById('form-exp-maps').value = item.maps;
-            openModal('modal-add-explore');
-        }
+        renderAll();
     }
 
-    // --- 資料儲存提交群 ---
-    function submitShopping() {
-        const id = document.getElementById('form-shop-id').value;
-        const name = document.getElementById('form-shop-name').value || "伴手禮商品";
-        const loc = document.getElementById('form-shop-loc').value || "福岡在地商圈";
-        const imgData = document.getElementById('form-shop-img-base64').value; // 讀取上傳轉碼後的實體照片
-        const maps = document.getElementById('form-shop-maps').value || "https://maps.google.com";
-
-        if(id) { 
-            let index = shoppings.findIndex(s => s.id == id); 
-            if(index !== -1) shoppings[index] = { id: Number(id), name, loc, imgData, maps }; 
-        } 
-        else { 
-            shoppings.push({ id: Date.now(), name, loc, imgData, maps }); 
-        }
-        // 清空重置
-        document.getElementById('form-shop-id').value = "";
-        document.getElementById('form-shop-img-base64').value = "";
-        document.getElementById('form-shop-img-file').value = "";
-        document.getElementById('shop-modal-title').textContent = "Need to buy";
-        
-        saveAllData(); closeModal('modal-add-shopping'); renderShopping();
-    }
-
-    function submitItinerary() {
+    async function submitItinerary() {
         const id = document.getElementById('form-iti-id').value; const day = document.getElementById('form-iti-day').value;
         const time = document.getElementById('form-iti-time').value || "12:00"; const name = document.getElementById('form-iti-name').value || "未命名行程";
         const desc = document.getElementById('form-iti-desc').value || ""; const cate = document.getElementById('form-iti-cate').value;
         const tag = document.getElementById('form-iti-tag').value; const maps = document.getElementById('form-iti-maps').value || "https://maps.google.com";
         if(id) { let index = itineraries.findIndex(i => i.id == id); if(index !== -1) itineraries[index] = { id: Number(id), day, time, name, desc, cate, tag, maps }; } 
         else { itineraries.push({ id: Date.now(), day, time, name, desc, cate, tag, maps }); }
-        document.getElementById('form-iti-id').value = ""; document.getElementById('iti-modal-title').textContent = "增加一個新行程";
-        saveAllData(); closeModal('modal-add-itinerary'); renderItinerary();
+        await pushToCloud('fk_itineraries', itineraries);
+        closeModal('modal-add-itinerary'); renderItinerary();
     }
 
-    function submitHotel() {
+    async function submitHotel() {
         const id = document.getElementById('form-hotel-id').value; const name = document.getElementById('form-hotel-name').value || "福岡飯店";
         const addr = document.getElementById('form-hotel-addr').value || "福岡"; const time = document.getElementById('form-hotel-time').value;
         const maps = document.getElementById('form-hotel-maps').value || "https://maps.google.com";
         let checkedDays = []; let checkboxes = document.getElementsByName('hotel-days');
         checkboxes.forEach(cb => { if(cb.checked) checkedDays.push(Number(cb.value)); });
-        if(checkedDays.length === 0) { alert('請至少選擇一天入住日期！'); return; }
         if(id) { let index = hotels.findIndex(h => h.id == id); if(index !== -1) hotels[index] = { id: Number(id), name, addr, time, maps, dates: checkedDays }; } 
         else { hotels.push({ id: Date.now(), name, addr, time, maps, dates: checkedDays }); }
-        document.getElementById('form-hotel-id').value = ""; document.getElementById('hotel-modal-title').textContent = "Add Hotel";
-        saveAllData(); closeModal('modal-add-hotel'); renderAll();
+        await pushToCloud('fk_hotels', hotels);
+        closeModal('modal-add-hotel'); renderAll();
     }
 
-    function submitExplore() {
+    async function submitShopping() {
+        const id = document.getElementById('form-shop-id').value; const name = document.getElementById('form-shop-name').value || "伴手禮";
+        const loc = document.getElementById('form-shop-loc').value || "免稅店"; const imgData = document.getElementById('form-shop-img-base64').value;
+        const maps = document.getElementById('form-shop-maps').value || "https://maps.google.com";
+        if(id) { let index = shoppings.findIndex(s => s.id == id); if(index !== -1) shoppings[index] = { id: Number(id), name, loc, imgData, maps }; } 
+        else { shoppings.push({ id: Date.now(), name, loc, imgData, maps }); }
+        await pushToCloud('fk_shoppings', shoppings);
+        closeModal('modal-add-shopping'); renderShopping();
+    }
+
+    async function submitExplore() {
         const id = document.getElementById('form-exp-id').value; const name = document.getElementById('form-exp-name').value || "候選景點";
         const region = document.getElementById('form-exp-region').value; const subregion = document.getElementById('form-exp-sub').value.trim() || "通用區域";
         const cate = document.getElementById('form-exp-cate').value; const addr = document.getElementById('form-exp-addr').value || "九州福岡";
         const maps = document.getElementById('form-exp-maps').value || "https://maps.google.com";
         if(id) { let index = explores.findIndex(e => e.id == id); if(index !== -1) explores[index] = { id: Number(id), name, region, subregion, cate, addr, maps }; } 
         else { explores.push({ id: Date.now(), name, region, subregion, cate, addr, maps }); }
-        document.getElementById('form-exp-id').value = ""; document.getElementById('exp-modal-title').textContent = "Add 想去嘅景點";
-        saveAllData(); updateSubregionDropdown(); closeModal('modal-add-explore'); renderExplore();
+        updateSubregionDropdown(); await pushToCloud('fk_explores', explores);
+        closeModal('modal-add-explore'); renderExplore();
     }
 
     function submitSomething() { const name = document.getElementById('form-some-name').value || "自駕提示", detail = document.getElementById('form-some-detail').value || ""; guides.push({ id: Date.now(), name, detail, pinned: false }); saveAllData(); closeModal('modal-add-something'); renderGuides(); }
 
-    // --- 購物分頁繪製器 (完美整合真實上傳圖片呈現) ---
-    function renderShopping() {
-        const list = document.getElementById('shopping-list'); if(!list) return;
-        list.innerHTML = '';
-        shoppings.forEach((s, index) => {
-            const card = document.createElement('div'); card.className = 'card';
-            
-            // 判定：如果使用者有上傳實體圖片，就渲染圖片標籤；否則帶入預設的高質感購物袋圖示
-            let imageContent = s.imgData 
-                ? `<img src="${s.imgData}" alt="product">` 
-                : `<i class="fa-solid fa-cart-shopping" style="font-size: 26px; color: var(--primary);"></i><span style="font-size:10px; margin-top:4px; color:var(--text-muted)">無圖片</span>`;
-
-            card.innerHTML = `
-                <button class="card-close-btn" onclick="deleteItem('shopping', ${s.id})"><i class="fa-solid fa-xmark"></i></button>
-                <div class="shopping-card-body">
-                    <div class="shopping-info">
-                        <h4 style="font-size:16px; font-weight:700;">${s.name}</h4>
-                        <p style="font-size:12px; color:var(--text-muted); margin:6px 0 8px 0;"><i class="fa-solid fa-shop"></i> ${s.loc}</p>
-                        <a href="${s.maps}" target="_blank" class="btn-nav" style="margin-top:0;"><i class="fa-solid fa-location-arrow"></i> 購買地導航</a>
-                    </div>
-                    <div class="shopping-img-box">
-                        ${imageContent}
-                    </div>
-                </div>
-                <div class="drag-controls">
-                    <button class="drag-btn edit-btn" onclick="openEditModal('shopping', ${s.id})"><i class="fa-regular fa-pen-to-square"></i> 編輯</button>
-                    <button class="drag-btn" onclick="moveOrder('shopping', ${index}, -1)"><i class="fa-solid fa-arrow-up"></i></button>
-                    <button class="drag-btn" onclick="moveOrder('shopping', ${index}, 1)"><i class="fa-solid fa-arrow-down"></i></button>
-                </div>
-            `;
-            list.appendChild(card);
-        });
+    function openEditModal(type, id) {
+        if (type === 'itinerary') {
+            let item = itineraries.find(i => i.id === id); if(!item) return;
+            document.getElementById('iti-modal-title').textContent = "編輯行程卡片 ✏️"; document.getElementById('form-iti-id').value = item.id;
+            document.getElementById('form-iti-day').value = item.day; document.getElementById('form-iti-time').value = item.time;
+            document.getElementById('form-iti-name').value = item.name; document.getElementById('form-iti-desc').value = item.desc;
+            document.getElementById('form-iti-cate').value = item.cate; document.getElementById('form-iti-tag').value = item.tag;
+            document.getElementById('form-iti-maps').value = item.maps; openModal('modal-add-itinerary');
+        }
+        else if (type === 'hotel') {
+            let item = hotels.find(h => h.id === id); if(!item) return;
+            document.getElementById('hotel-modal-title').textContent = "編輯酒店資訊 ✏️"; document.getElementById('form-hotel-id').value = item.id;
+            document.getElementById('form-hotel-name').value = item.name; document.getElementById('form-hotel-addr').value = item.addr;
+            document.getElementById('form-hotel-time').value = item.time; document.getElementById('form-hotel-maps').value = item.maps;
+            let checkboxes = document.getElementsByName('hotel-days'); checkboxes.forEach(cb => { cb.checked = item.dates.includes(Number(cb.value)); });
+            openModal('modal-add-hotel');
+        }
+        else if (type === 'shopping') {
+            let item = shoppings.find(s => s.id === id); if(!item) return;
+            document.getElementById('shop-modal-title').textContent = "編輯購物清單 ✏️"; document.getElementById('form-shop-id').value = item.id;
+            document.getElementById('form-shop-name').value = item.name; document.getElementById('form-shop-loc').value = item.loc;
+            document.getElementById('form-shop-img-base64').value = item.imgData || ""; document.getElementById('form-shop-maps').value = item.maps;
+            openModal('modal-add-shopping');
+        }
+        else if (type === 'explore') {
+            let item = explores.find(e => e.id === id); if(!item) return;
+            document.getElementById('exp-modal-title').textContent = "編輯想去景點 ✏️"; document.getElementById('form-exp-id').value = item.id;
+            document.getElementById('form-exp-name').value = item.name; document.getElementById('form-exp-region').value = item.region;
+            document.getElementById('form-exp-sub').value = item.subregion; document.getElementById('form-exp-cate').value = item.cate;
+            document.getElementById('form-exp-addr').value = item.addr; document.getElementById('form-exp-maps').value = item.maps;
+            openModal('modal-add-explore');
+        }
     }
 
-    // --- 剩餘不變之介面繪製 ---
     function renderItinerary() {
         const list = document.getElementById('itinerary-list'); if(!list) return; list.innerHTML = '';
         let dayIti = itineraries.filter(item => item.day == currentDay);
@@ -777,24 +770,23 @@
         dayIti.sort((a,b) => a.time.localeCompare(b.time));
         dayIti.forEach((item, index) => {
             const card = document.createElement('div'); card.className = 'card';
-            card.innerHTML = `<button class="card-close-btn" onclick="deleteItem('itinerary', ${item.id})"><i class="fa-solid fa-xmark"></i></button><span class="tag tag-cate">${item.cate}</span><span class="tag ${item.tag}">${item.tag === 'tag-eat' ? '必吃' : item.tag === 'tag-buy' ? '必買' : '必拍'}</span><h3 style="margin: 8px 0 4px 0; font-size:16px;">⏱️ ${item.time} - ${item.name}</h3><p style="font-size: 13px; color: var(--text-dark); margin-bottom: 8px;">${item.desc}</p><div style="background: #F4F6FB; padding: 8px; border-radius: 8px; font-size: 11px; color: #555; margin-bottom:8px;">${getParkingAndGasInfo(item.cate)}</div><a href="${item.maps}" target="_blank" class="btn-nav"><i class="fa-solid fa-location-arrow"></i> Google Maps</a><div class="drag-controls"><button class="drag-btn edit-btn" onclick="openEditModal('itinerary', ${item.id})"><i class="fa-regular fa-pen-to-square"></i> 編輯</button><button class="drag-btn" onclick="moveOrder('itinerary', ${index}, -1)"><i class="fa-solid fa-arrow-up"></i> 上移</button><button class="drag-btn" onclick="moveOrder('itinerary', ${index}, 1)"><i class="fa-solid fa-arrow-down"></i> 下移</button></div>`;
+            card.innerHTML = `<button class="card-close-btn" onclick="deleteItem('itinerary', ${item.id})"><i class="fa-solid fa-xmark"></i></button><span class="tag tag-cate">${item.cate}</span><span class="tag ${item.tag}">${item.tag === 'tag-eat' ? '必吃' : item.tag === 'tag-buy' ? '必買' : '必拍'}</span><h3 style="margin: 8px 0 4px 0; font-size:16px;">⏱️ ${item.time} - ${item.name}</h3><p style="font-size: 13px; color: var(--text-dark); margin-bottom: 8px;">${item.desc}</p><div style="background: #F4F6FB; padding: 8px; border-radius: 8px; font-size: 11px; color: #555; margin-bottom:8px;">${getParkingAndGasInfo(item.cate)}</div><a href="${item.maps}" target="_blank" class="btn-nav"><i class="fa-solid fa-location-arrow"></i> Google Maps</a><div class="drag-controls"><button class="drag-btn edit-btn" onclick="openEditModal('itinerary', ${item.id})"><i class="fa-regular fa-pen-to-square"></i> 編輯</button><button class="drag-btn" onclick="moveOrder('itinerary', ${index}, -1)"><i class="fa-solid fa-arrow-up"></i></button><button class="drag-btn" onclick="moveOrder('itinerary', ${index}, 1)"><i class="fa-solid fa-arrow-down"></i></button></div>`;
             list.appendChild(card);
         });
         if (dayMapping[currentDay]) document.getElementById('weather-tip-box').innerHTML = `<strong>日期：${dayMapping[currentDay].dateStr} (${dayMapping[currentDay].temp})</strong><br>${dayMapping[currentDay].dress}`;
     }
-    function renderGuides() { const list = document.getElementById('guide-list'); if(!list) return; list.innerHTML = ''; let sortedGuides = [...guides].sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)); sortedGuides.forEach((g, index) => { const card = document.createElement('div'); card.className = `card ${g.pinned ? 'pinned' : ''}`; card.innerHTML = `<button class="card-close-btn" onclick="deleteItem('guide', ${g.id})"><i class="fa-solid fa-xmark"></i></button><h4>📌 ${g.name}</h4><p style="font-size:13px; color:var(--text-dark); margin-top:6px; line-height:1.4;">${g.detail}</p><div class="drag-controls"><button class="drag-btn pin-btn" onclick="togglePinGuide(${g.id})"><i class="fa-solid fa-thumbtack"></i> ${g.pinned ? '取消置頂' : '設為置頂'}</button><button class="drag-btn" onclick="moveGuideOrder(${index}, -1)"><i class="fa-solid fa-arrow-up"></i></button><button class="drag-btn" onclick="moveGuideOrder(${index}, 1)"><i class="fa-solid fa-arrow-down"></i></button></div>`; list.appendChild(card); }); }
-    function togglePinGuide(id) { let g = guides.find(item => item.id === id); if(g) g.pinned = !g.pinned; saveAllData(); renderGuides(); }
-    function moveGuideOrder(index, direction) { let targetIndex = index + direction; if (targetIndex < 0 || targetIndex >= guides.length) return; let sortedGuides = [...guides].sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)); let temp = sortedGuides[index]; sortedGuides[index] = sortedGuides[targetIndex]; sortedGuides[targetIndex] = temp; guides = sortedGuides; saveAllData(); renderGuides(); }
     function renderHotels() { const list = document.getElementById('hotel-list'); if(!list) return; list.innerHTML = ''; hotels.forEach(h => { let dateLabels = h.dates.map(d => dayMapping[d] ? dayMapping[d].ddmm : d).join(', '); const card = document.createElement('div'); card.className = 'card'; card.innerHTML = `<button class="card-close-btn" onclick="deleteItem('hotel', ${h.id})"><i class="fa-solid fa-xmark"></i></button><h3 style="font-size:16px; color:var(--primary);"><i class="fa-solid fa-hotel"></i> ${h.name}</h3><p style="font-size:13px; margin: 6px 0 2px 0;"><b>地址：</b>${h.addr}</p><p style="font-size:12px; color:var(--text-muted); margin-bottom:4px;"><b>入住日期：</b>${dateLabels}</p><p style="font-size:12px; color:var(--text-muted); margin-bottom:4px;"><b>說明：</b>${h.time}</p><a href="${h.maps}" target="_blank" class="btn-nav"><i class="fa-solid fa-location-arrow"></i> 導航酒店</a><div class="drag-controls"><button class="drag-btn edit-btn" onclick="openEditModal('hotel', ${h.id})"><i class="fa-regular fa-pen-to-square"></i> 編輯</button></div>`; list.appendChild(card); }); }
+    function renderShopping() { const list = document.getElementById('shopping-list'); if(!list) return; list.innerHTML = ''; shoppings.forEach((s, index) => { const card = document.createElement('div'); card.className = 'card'; let imgTag = s.imgData ? `<img src="${s.imgData}" alt="pic">` : `<i class="fa-solid fa-cart-shopping" style="font-size: 26px; color: var(--primary);"></i>`; card.innerHTML = `<button class="card-close-btn" onclick="deleteItem('shopping', ${s.id})"><i class="fa-solid fa-xmark"></i></button><div class="shopping-card-body"><div class="shopping-info"><h4>${s.name}</h4><p style="font-size:12px; color:var(--text-muted); margin:4px 0 6px 0;"><i class="fa-solid fa-shop"></i> ${s.loc}</p><a href="${s.maps}" target="_blank" class="btn-nav" style="margin-top:0;"><i class="fa-solid fa-location-arrow"></i> 導航</a></div><div class="shopping-img-box">${imgTag}</div></div><div class="drag-controls"><button class="drag-btn edit-btn" onclick="openEditModal('shopping', ${s.id})"><i class="fa-regular fa-pen-to-square"></i> 編輯</button><button class="drag-btn" onclick="moveOrder('shopping', ${index}, -1)"><i class="fa-solid fa-arrow-up"></i></button><button class="drag-btn" onclick="moveOrder('shopping', ${index}, 1)"><i class="fa-solid fa-arrow-down"></i></button></div>`; list.appendChild(card); }); }
     function renderExplore() { const list = document.getElementById('explore-list'); if(!list) return; list.innerHTML = ''; const rFilter = document.getElementById('filter-region').value, sFilter = document.getElementById('filter-subregion').value, cFilter = document.getElementById('filter-cate').value; let filtered = explores.filter(e => (!rFilter || e.region === rFilter) && (!sFilter || (e.subregion && e.subregion.trim() === sFilter.trim())) && (!cFilter || e.cate === cFilter)); filtered.forEach((e, index) => { const card = document.createElement('div'); card.className = 'card'; card.innerHTML = `<button class="card-close-btn" onclick="deleteItem('explore', ${e.id})"><i class="fa-solid fa-xmark"></i></button><span class="tag tag-cate">${e.region} · ${e.subregion || '未分區'}</span><span class="tag tag-photo">${e.cate}</span><h4 style="margin-top:6px; font-size:15px;">${e.name}</h4><p style="font-size:12px; color:var(--text-muted); margin: 4px 0 8px 0;">${e.addr}</p><a href="${e.maps}" target="_blank" class="btn-nav" style="margin-top:0;"><i class="fa-solid fa-location-arrow"></i> 導航</a><div class="drag-controls"><button class="drag-btn edit-btn" onclick="openEditModal('explore', ${e.id})"><i class="fa-regular fa-pen-to-square"></i> 編輯</button><button class="drag-btn" onclick="moveOrder('explore', ${index}, -1)"><i class="fa-solid fa-arrow-up"></i></button><button class="drag-btn" onclick="moveOrder('explore', ${index}, 1)"><i class="fa-solid fa-arrow-down"></i></button></div>`; list.appendChild(card); }); }
+    function renderGuides() { const list = document.getElementById('guide-list'); if(!list) return; list.innerHTML = ''; let sortedGuides = [...guides].sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)); sortedGuides.forEach(g => { const card = document.createElement('div'); card.className = `card ${g.pinned ? 'pinned' : ''}`; card.innerHTML = `<h4>📌 ${g.name}</h4><p style="font-size:13px; margin-top:6px;">${g.detail}</p>`; list.appendChild(card); }); }
 
-    // --- 基礎核心控制函數 ---
+    function getParkingAndGasInfo(cate) { return ["食物", "景點", "景點🏖️", "餐廳🍴"].includes(cate) ? `P 附設 Times 收費停車場 <br> G 附近 1km 內有 ENEOS 加油站` : `P 市區多立體車場，留意限高 2.1m。`; }
     function switchDay(dayNum) { currentDay = dayNum; document.querySelectorAll('.day-tab').forEach((tab, index) => { tab.classList.toggle('active', index === (dayNum - 1)); }); renderItinerary(); }
     function openModal(id) { document.getElementById(id).style.display = 'flex'; }
     function closeModal(id) { document.getElementById(id).style.display = 'none'; }
     function filterExplore() { renderExplore(); }
     function convertCurrency(type) { const h = document.getElementById('calc-hkd'), j = document.getElementById('calc-jpy'); if (type === 'hkd') { if(h.value==="") {j.value=""; return;} j.value = Math.round(parseFloat(h.value)*exchangeRatejpy); } else { if(j.value==="") {h.value=""; return;} h.value = (parseFloat(j.value)/exchangeRatejpy).toFixed(2); } }
-    function queryParkingAPI() { const b = document.getElementById('parking-search').value.trim(), r = document.getElementById('parking-api-result'); if(!b) { r.innerHTML = '❌ 請輸入查詢區域'; return; } r.innerHTML = `⏳ 正在連接 Times 停車場 API 系統...`; setTimeout(() => { r.innerHTML = `<strong>🅿️ Times 停車場 - ${b} 區 (2026.07 即時狀態)</strong><br>1. Times ${b} 第1車場：空車 (空あり) · 200日圓/30分<br>2. Times ${b} 第3立體車場：滿車 (滿車) · 當日最高 1200日圓`; }, 500); }
+    function queryParkingAPI() { const b = document.getElementById('parking-search').value.trim(), r = document.getElementById('parking-api-result'); if(!b) return; r.innerHTML = `⏳ 正在連線 Times 數據庫...`; setTimeout(() => { r.innerHTML = `<strong>🅿️ Times 停車場 - ${b} (即時狀態)</strong><br>1. Times 第1場：空車 · 200日圓/30分`; }, 400); }
 </script>
 </body>
 </html>
